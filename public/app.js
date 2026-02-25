@@ -4,6 +4,8 @@
 
 let settings = { person1_name: 'Aさん', person2_name: 'Bさん', person1_rate: 50 };
 let currentYear, currentMonth;
+// Bug fix: track in-flight loadList request to prevent race conditions from rapid clicks
+let loadListSeq = 0;
 
 // ── 初期化 ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -37,8 +39,15 @@ function setupNav() {
 
 // ── 設定読み込み ─────────────────────────────────────
 async function loadSettings() {
-  const res = await fetch('/api/settings');
-  settings = await res.json();
+  // Bug fix: catch network errors so the app doesn't silently break
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error('設定の取得に失敗しました');
+    settings = await res.json();
+  } catch (err) {
+    console.error('loadSettings:', err);
+    return;
+  }
 
   document.getElementById('person1_name').value = settings.person1_name;
   document.getElementById('person2_name').value = settings.person2_name;
@@ -79,26 +88,36 @@ function setupSettingsForm() {
 
   document.getElementById('settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const msg = document.getElementById('settings-msg');
     const body = {
       person1_name: document.getElementById('person1_name').value.trim(),
       person2_name: document.getElementById('person2_name').value.trim(),
       person1_rate: parseInt(document.getElementById('person1_rate').value, 10)
     };
-    const res = await fetch('/api/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const msg = document.getElementById('settings-msg');
-    if (res.ok) {
-      settings = { ...body };
-      updatePayerSelect();
-      msg.textContent = '保存しました';
-      msg.className = 'msg success';
-    } else {
-      const err = await res.json();
-      msg.textContent = err.error;
+    // Bug fix: disable button to prevent double-submission; add error handling
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        settings = { ...body };
+        updatePayerSelect();
+        msg.textContent = '保存しました';
+        msg.className = 'msg success';
+      } else {
+        const err = await res.json();
+        msg.textContent = err.error;
+        msg.className = 'msg error';
+      }
+    } catch {
+      msg.textContent = 'ネットワークエラーが発生しました';
       msg.className = 'msg error';
+    } finally {
+      btn.disabled = false;
     }
     setTimeout(() => { msg.textContent = ''; }, 3000);
   });
@@ -109,6 +128,8 @@ function setupExpenseForm() {
   document.getElementById('expense-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = document.getElementById('input-msg');
     const body = {
       date: form.date.value,
       category: form.category.value,
@@ -117,22 +138,30 @@ function setupExpenseForm() {
       amount: form.amount.value,
       paid_by: form.paid_by.value
     };
-    const res = await fetch('/api/expenses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const msg = document.getElementById('input-msg');
-    if (res.ok) {
-      msg.textContent = '✔ 追加しました';
-      msg.className = 'msg success';
-      form.subcategory.value = '';
-      form.description.value = '';
-      form.amount.value = '';
-    } else {
-      const err = await res.json();
-      msg.textContent = err.error;
+    // Bug fix: disable button to prevent duplicate submissions; add error handling
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        msg.textContent = '✔ 追加しました';
+        msg.className = 'msg success';
+        form.subcategory.value = '';
+        form.description.value = '';
+        form.amount.value = '';
+      } else {
+        const err = await res.json();
+        msg.textContent = err.error;
+        msg.className = 'msg error';
+      }
+    } catch {
+      msg.textContent = 'ネットワークエラーが発生しました';
       msg.className = 'msg error';
+    } finally {
+      btn.disabled = false;
     }
     setTimeout(() => { msg.textContent = ''; }, 3000);
   });
@@ -157,12 +186,27 @@ async function loadList() {
   document.getElementById('month-label').textContent =
     `${currentYear}年 ${currentMonth}月`;
 
-  const [settlementRes, expensesRes] = await Promise.all([
-    fetch(`/api/settlement?year=${currentYear}&month=${currentMonth}`),
-    fetch(`/api/expenses?year=${currentYear}&month=${currentMonth}`)
-  ]);
-  const settlement = await settlementRes.json();
-  const expenses = await expensesRes.json();
+  // Bug fix: use a sequence number to ignore stale responses from rapid month navigation
+  const seq = ++loadListSeq;
+
+  let settlement, expenses;
+  try {
+    const [settlementRes, expensesRes] = await Promise.all([
+      fetch(`/api/settlement?year=${currentYear}&month=${currentMonth}`),
+      fetch(`/api/expenses?year=${currentYear}&month=${currentMonth}`)
+    ]);
+    if (seq !== loadListSeq) return; // stale response — a newer request is in flight
+    if (!settlementRes.ok || !expensesRes.ok) throw new Error('データの取得に失敗しました');
+    [settlement, expenses] = await Promise.all([settlementRes.json(), expensesRes.json()]);
+  } catch (err) {
+    if (seq !== loadListSeq) return;
+    console.error('loadList:', err);
+    document.getElementById('settlement-content').innerHTML =
+      '<div class="empty-state">データの取得に失敗しました</div>';
+    document.getElementById('category-breakdown').innerHTML = '';
+    document.getElementById('expense-list').innerHTML = '';
+    return;
+  }
 
   renderSettlement(settlement);
   renderCategoryBreakdown(settlement.categories || []);
@@ -171,7 +215,10 @@ async function loadList() {
 
 function renderSettlement(data) {
   const el = document.getElementById('settlement-content');
-  if (!data.totalExpense && data.totalExpense !== 0) {
+  // Bug fix: totalExpense is always a number from the server (0 when no expenses).
+  // The old condition `!data.totalExpense && data.totalExpense !== 0` was never true,
+  // so the empty state was never shown. Show empty state when totalExpense === 0.
+  if (!data.totalExpense) {
     el.innerHTML = '<div class="empty-state">データがありません</div>';
     return;
   }
@@ -179,12 +226,13 @@ function renderSettlement(data) {
   const p1 = data.person1;
   const p2 = data.person2;
 
+  // Bug fix: escape person names to prevent XSS
   el.innerHTML = `
     <table class="settlement-table">
       <tr>
         <th></th>
-        <th>${p1.name}（${p1.rate}%）</th>
-        <th>${p2.name}（${p2.rate}%）</th>
+        <th>${escHtml(p1.name)}（${p1.rate}%）</th>
+        <th>${escHtml(p2.name)}（${p2.rate}%）</th>
       </tr>
       <tr>
         <td>実際の支払額</td>
@@ -213,10 +261,11 @@ function renderSettlementResult(s) {
   if (!s) {
     return `<div class="settlement-result balanced">精算不要（差額なし）</div>`;
   }
+  // Bug fix: escape person names to prevent XSS
   return `
     <div class="settlement-result">
-      <span class="amount">${s.from}</span> が
-      <span class="amount">${s.to}</span> に
+      <span class="amount">${escHtml(s.from)}</span> が
+      <span class="amount">${escHtml(s.to)}</span> に
       <span class="amount">${yen(s.amount)}</span> 支払う
     </div>`;
 }
@@ -247,7 +296,7 @@ function renderExpenseList(expenses) {
     <div class="expense-item" id="ei-${e.id}">
       <div class="expense-info">
         <div class="expense-date">${e.date}</div>
-        <div class="expense-main">${e.category}${e.subcategory ? ` ／ ${e.subcategory}` : ''}</div>
+        <div class="expense-main">${escHtml(e.category)}${e.subcategory ? ` ／ ${escHtml(e.subcategory)}` : ''}</div>
         ${e.description ? `<div class="expense-sub">${escHtml(e.description)}</div>` : ''}
       </div>
       <div class="expense-right">
@@ -261,7 +310,18 @@ function renderExpenseList(expenses) {
 
 async function deleteExpense(id) {
   if (!confirm('この支出を削除しますか？')) return;
-  await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+  // Bug fix: check response status and handle errors
+  try {
+    const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || '削除に失敗しました');
+      return;
+    }
+  } catch {
+    alert('ネットワークエラーが発生しました');
+    return;
+  }
   loadList();
 }
 

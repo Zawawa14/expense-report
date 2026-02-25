@@ -36,7 +36,13 @@ app.get('/api/expenses', (req, res) => {
   const { year, month } = req.query;
   let rows;
   if (year && month) {
-    const ym = `${year}-${String(month).padStart(2, '0')}`;
+    // Bug fix: validate year/month are integers to prevent LIKE pattern injection
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) {
+      return res.status(400).json({ error: '無効な年月です' });
+    }
+    const ym = `${y}-${String(m).padStart(2, '0')}`;
     rows = db.prepare(
       "SELECT * FROM expenses WHERE date LIKE ? ORDER BY date DESC, id DESC"
     ).all(`${ym}%`);
@@ -62,7 +68,15 @@ app.post('/api/expenses', (req, res) => {
 });
 
 app.delete('/api/expenses/:id', (req, res) => {
-  db.prepare('DELETE FROM expenses WHERE id = ?').run(req.params.id);
+  // Bug fix: validate ID is a positive integer before touching the DB
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: '無効なIDです' });
+  }
+  const result = db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: '該当する支出が見つかりません' });
+  }
   res.json({ ok: true });
 });
 
@@ -73,7 +87,13 @@ app.get('/api/settlement', (req, res) => {
   if (!year || !month) {
     return res.status(400).json({ error: 'year と month を指定してください' });
   }
-  const ym = `${year}-${String(month).padStart(2, '0')}`;
+  // Bug fix: validate year/month are integers to prevent LIKE pattern injection
+  const y = parseInt(year, 10);
+  const m = parseInt(month, 10);
+  if (isNaN(y) || isNaN(m) || m < 1 || m > 12) {
+    return res.status(400).json({ error: '無効な年月です' });
+  }
+  const ym = `${y}-${String(m).padStart(2, '0')}`;
   const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get();
   const rows = db.prepare(
     "SELECT paid_by, SUM(amount) as total FROM expenses WHERE date LIKE ? GROUP BY paid_by"
@@ -110,7 +130,7 @@ app.get('/api/settlement', (req, res) => {
   ).all(`${ym}%`);
 
   res.json({
-    year: parseInt(year), month: parseInt(month),
+    year: y, month: m,
     totalExpense,
     person1: { name: p1, rate: rate1, paid: paid1, shouldPay: shouldPay1 },
     person2: { name: p2, rate: rate2, paid: paid2, shouldPay: shouldPay2 },
