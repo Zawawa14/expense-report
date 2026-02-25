@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家計簿アプリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🏠 家計簿アプリ</h1>
+    <nav>
+      <button class="nav-btn active" data-tab="input">支出入力</button>
+      <button class="nav-btn" data-tab="list">一覧・精算</button>
+      <button class="nav-btn" data-tab="settings">設定</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ===== 支出入力タブ ===== -->
+    <section id="tab-input" class="tab active">
+      <h2>支出を入力</h2>
+      <form id="expense-form">
+        <div class="form-row">
+          <label for="date">日付 <span class="required">*</span></label>
+          <input type="date" id="date" name="date" required>
+        </div>
+        <div class="form-row">
+          <label for="category">分類 <span class="required">*</span></label>
+          <select id="category" name="category" required>
+            <option value="食費">食費</option>
+            <option value="日用品">日用品</option>
+            <option value="交通費">交通費</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="subcategory">中分類 <span class="optional">（任意）</span></label>
+          <input type="text" id="subcategory" name="subcategory" placeholder="例：スーパー、ガス代...">
+        </div>
+        <div class="form-row">
+          <label for="description">メモ <span class="optional">（任意）</span></label>
+          <input type="text" id="description" name="description" placeholder="詳細メモ">
+        </div>
+        <div class="form-row">
+          <label for="amount">金額（円） <span class="required">*</span></label>
+          <input type="number" id="amount" name="amount" min="1" placeholder="0" required>
+        </div>
+        <div class="form-row">
+          <label for="paid_by">支払者 <span class="required">*</span></label>
+          <select id="paid_by" name="paid_by" required>
+            <!-- JS で設定から挿入 -->
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">追加</button>
+        </div>
+        <div id="input-msg" class="msg"></div>
+      </form>
+    </section>
+
+    <!-- ===== 一覧・精算タブ ===== -->
+    <section id="tab-list" class="tab">
+      <div class="month-selector">
+        <button id="prev-month" class="btn-icon">‹</button>
+        <span id="month-label"></span>
+        <button id="next-month" class="btn-icon">›</button>
+      </div>
+
+      <!-- 精算サマリー -->
+      <div class="card" id="settlement-card">
+        <h3>今月の精算</h3>
+        <div id="settlement-content">読み込み中...</div>
+      </div>
+
+      <!-- カテゴリ別 -->
+      <div class="card">
+        <h3>カテゴリ別合計</h3>
+        <div id="category-breakdown"></div>
+      </div>
+
+      <!-- 支出一覧 -->
+      <div class="card">
+        <h3>支出一覧</h3>
+        <div id="expense-list">読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- ===== 設定タブ ===== -->
+    <section id="tab-settings" class="tab">
+      <h2>設定</h2>
+      <form id="settings-form">
+        <div class="form-row">
+          <label for="person1_name">人物1 の名前</label>
+          <input type="text" id="person1_name" name="person1_name" required>
+        </div>
+        <div class="form-row">
+          <label for="person2_name">人物2 の名前</label>
+          <input type="text" id="person2_name" name="person2_name" required>
+        </div>
+        <div class="form-row rate-row">
+          <label>負担率（合計100%）</label>
+          <div class="rate-inputs">
+            <span id="rate-person1-label">人物1</span>
+            <input type="range" id="person1_rate" name="person1_rate" min="0" max="100" value="50">
+            <span id="rate-person2-label">人物2</span>
+          </div>
+          <div class="rate-display">
+            <span id="rate1-val">50</span>% &nbsp;/&nbsp; <span id="rate2-val">50</span>%
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+        <div id="settings-msg" class="msg"></div>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
