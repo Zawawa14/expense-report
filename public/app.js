@@ -279,7 +279,7 @@ function renderCategoryBreakdown(categories) {
   el.innerHTML = categories.map(c => `
     <div class="cat-row">
       <div class="cat-label">
-        <span class="cat-badge">${c.category}</span>
+        <span class="cat-badge">${escHtml(c.category)}</span>
       </div>
       <div class="cat-amount">${yen(c.total)}</div>
     </div>
@@ -295,7 +295,7 @@ function renderExpenseList(expenses) {
   el.innerHTML = expenses.map(e => `
     <div class="expense-item" id="ei-${e.id}">
       <div class="expense-info">
-        <div class="expense-date">${e.date}</div>
+        <div class="expense-date">${escHtml(e.date)}</div>
         <div class="expense-main">${escHtml(e.category)}${e.subcategory ? ` ／ ${escHtml(e.subcategory)}` : ''}</div>
         ${e.description ? `<div class="expense-sub">${escHtml(e.description)}</div>` : ''}
       </div>
@@ -341,5 +341,6 @@ function toDateStr(d) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
