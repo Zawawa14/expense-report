@@ -24,6 +24,18 @@ db.exec(`
 
   INSERT OR IGNORE INTO settings (id, person1_name, person2_name, person1_rate)
   VALUES (1, 'Aさん', 'Bさん', 50);
+
+  CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
+    due_date TEXT,
+    completed INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    completed_at TEXT
+  );
 `);
 
 module.exports = db;

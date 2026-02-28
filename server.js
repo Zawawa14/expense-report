@@ -139,6 +139,117 @@ app.get('/api/settlement', (req, res) => {
   });
 });
 
+// --- Todos ---
+
+app.get('/api/todos', (req, res) => {
+  const { status, priority, category, search } = req.query;
+  let query = 'SELECT * FROM todos WHERE 1=1';
+  const params = [];
+
+  if (status === 'active') {
+    query += ' AND completed = 0';
+  } else if (status === 'completed') {
+    query += ' AND completed = 1';
+  }
+
+  if (priority && ['high', 'medium', 'low'].includes(priority)) {
+    query += ' AND priority = ?';
+    params.push(priority);
+  }
+
+  if (category) {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+
+  if (search) {
+    query += ' AND (title LIKE ? OR description LIKE ?)';
+    const like = `%${search}%`;
+    params.push(like, like);
+  }
+
+  query += ' ORDER BY completed ASC, CASE priority WHEN \'high\' THEN 1 WHEN \'medium\' THEN 2 WHEN \'low\' THEN 3 END, due_date ASC, id DESC';
+
+  const rows = db.prepare(query).all(...params);
+  res.json(rows);
+});
+
+app.get('/api/todos/stats', (req, res) => {
+  const total = db.prepare('SELECT COUNT(*) as count FROM todos').get().count;
+  const active = db.prepare('SELECT COUNT(*) as count FROM todos WHERE completed = 0').get().count;
+  const completed = db.prepare('SELECT COUNT(*) as count FROM todos WHERE completed = 1').get().count;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = db.prepare(
+    "SELECT COUNT(*) as count FROM todos WHERE completed = 0 AND due_date IS NOT NULL AND due_date < ?"
+  ).get(today).count;
+  const categories = db.prepare(
+    "SELECT category, COUNT(*) as count FROM todos WHERE category != '' GROUP BY category ORDER BY count DESC"
+  ).all();
+  res.json({ total, active, completed, overdue, categories });
+});
+
+app.post('/api/todos', (req, res) => {
+  const { title, description, category, priority, due_date } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'タイトルを入力してください' });
+  }
+  const validPriority = ['high', 'medium', 'low'].includes(priority) ? priority : 'medium';
+  const result = db.prepare(
+    'INSERT INTO todos (title, description, category, priority, due_date) VALUES (?, ?, ?, ?, ?)'
+  ).run(title.trim(), description || '', category || '', validPriority, due_date || null);
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(result.lastInsertRowid);
+  res.json(todo);
+});
+
+app.put('/api/todos/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: '無効なIDです' });
+
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
+  if (!todo) return res.status(404).json({ error: 'TODOが見つかりません' });
+
+  const { title, description, category, priority, due_date } = req.body;
+  if (title !== undefined && !title.trim()) {
+    return res.status(400).json({ error: 'タイトルを入力してください' });
+  }
+  const validPriority = ['high', 'medium', 'low'].includes(priority) ? priority : todo.priority;
+
+  db.prepare(
+    'UPDATE todos SET title = ?, description = ?, category = ?, priority = ?, due_date = ? WHERE id = ?'
+  ).run(
+    (title || todo.title).trim(),
+    description !== undefined ? description : todo.description,
+    category !== undefined ? category : todo.category,
+    validPriority,
+    due_date !== undefined ? (due_date || null) : todo.due_date,
+    id
+  );
+  const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
+  res.json(updated);
+});
+
+app.patch('/api/todos/:id/toggle', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: '無効なIDです' });
+
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
+  if (!todo) return res.status(404).json({ error: 'TODOが見つかりません' });
+
+  const newCompleted = todo.completed ? 0 : 1;
+  const completedAt = newCompleted ? new Date().toLocaleString('ja-JP') : null;
+  db.prepare('UPDATE todos SET completed = ?, completed_at = ? WHERE id = ?').run(newCompleted, completedAt, id);
+  const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
+  res.json(updated);
+});
+
+app.delete('/api/todos/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: '無効なIDです' });
+  const result = db.prepare('DELETE FROM todos WHERE id = ?').run(id);
+  if (result.changes === 0) return res.status(404).json({ error: 'TODOが見つかりません' });
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => {
-  console.log(`家計簿アプリ起動中: http://localhost:${PORT}`);
+  console.log(`アプリ起動中: http://localhost:${PORT}`);
 });

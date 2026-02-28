@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TODOアプリ</title>
+  <link rel="stylesheet" href="todo-style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <h1 class="header-title">
+          <span class="header-icon">✓</span>
+          TODOアプリ
+        </h1>
+        <a href="/" class="nav-link">家計簿へ</a>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Stats -->
+      <section class="stats-section">
+        <div class="stat-card stat-total">
+          <span class="stat-number" id="stat-total">0</span>
+          <span class="stat-label">合計</span>
+        </div>
+        <div class="stat-card stat-active">
+          <span class="stat-number" id="stat-active">0</span>
+          <span class="stat-label">未完了</span>
+        </div>
+        <div class="stat-card stat-completed">
+          <span class="stat-number" id="stat-completed">0</span>
+          <span class="stat-label">完了済み</span>
+        </div>
+        <div class="stat-card stat-overdue">
+          <span class="stat-number" id="stat-overdue">0</span>
+          <span class="stat-label">期限切れ</span>
+        </div>
+      </section>
+
+      <!-- Add Todo Form -->
+      <section class="form-section">
+        <div class="form-card">
+          <h2 class="form-title">新しいTODOを追加</h2>
+          <form id="todo-form">
+            <div class="form-row">
+              <div class="form-group form-group--full">
+                <label class="form-label" for="input-title">タイトル <span class="required">*</span></label>
+                <input
+                  type="text"
+                  id="input-title"
+                  class="form-input"
+                  placeholder="TODOのタイトルを入力..."
+                  maxlength="200"
+                  required
+                >
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group form-group--full">
+                <label class="form-label" for="input-description">詳細説明</label>
+                <textarea
+                  id="input-description"
+                  class="form-input form-textarea"
+                  placeholder="詳細を入力（任意）..."
+                  rows="2"
+                  maxlength="1000"
+                ></textarea>
+              </div>
+            </div>
+            <div class="form-row form-row--3col">
+              <div class="form-group">
+                <label class="form-label" for="input-priority">優先度</label>
+                <select id="input-priority" class="form-input form-select">
+                  <option value="high">高</option>
+                  <option value="medium" selected>中</option>
+                  <option value="low">低</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-category">カテゴリ</label>
+                <div class="category-input-wrapper">
+                  <input
+                    type="text"
+                    id="input-category"
+                    class="form-input"
+                    placeholder="カテゴリ名..."
+                    list="category-list"
+                    maxlength="50"
+                  >
+                  <datalist id="category-list"></datalist>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-due-date">期限</label>
+                <input
+                  type="date"
+                  id="input-due-date"
+                  class="form-input"
+                >
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn--primary">
+                <span class="btn-icon">+</span> 追加する
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Filters -->
+      <section class="filter-section">
+        <div class="filter-bar">
+          <div class="filter-tabs">
+            <button class="filter-tab filter-tab--active" data-status="all">すべて</button>
+            <button class="filter-tab" data-status="active">未完了</button>
+            <button class="filter-tab" data-status="completed">完了済み</button>
+          </div>
+          <div class="filter-controls">
+            <select id="filter-priority" class="filter-select">
+              <option value="">優先度: すべて</option>
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+            <select id="filter-category" class="filter-select">
+              <option value="">カテゴリ: すべて</option>
+            </select>
+            <div class="search-wrapper">
+              <input
+                type="search"
+                id="filter-search"
+                class="filter-input"
+                placeholder="検索..."
+              >
+            </div>
+          </div>
+        </div>
+        <div class="filter-summary">
+          <span id="filter-count">0件</span>
+          <button class="btn-text" id="clear-completed" style="display:none">完了済みを削除</button>
+        </div>
+      </section>
+
+      <!-- Todo List -->
+      <section class="list-section">
+        <div id="todo-list" class="todo-list">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">📝</div>
+            <p class="empty-text">TODOがありません</p>
+            <p class="empty-sub">上のフォームから追加してください</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="edit-modal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">TODOを編集</h2>
+        <button class="modal-close" id="modal-close">×</button>
+      </div>
+      <form id="edit-form">
+        <input type="hidden" id="edit-id">
+        <div class="form-row">
+          <div class="form-group form-group--full">
+            <label class="form-label" for="edit-title">タイトル <span class="required">*</span></label>
+            <input type="text" id="edit-title" class="form-input" maxlength="200" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group--full">
+            <label class="form-label" for="edit-description">詳細説明</label>
+            <textarea id="edit-description" class="form-input form-textarea" rows="3" maxlength="1000"></textarea>
+          </div>
+        </div>
+        <div class="form-row form-row--3col">
+          <div class="form-group">
+            <label class="form-label" for="edit-priority">優先度</label>
+            <select id="edit-priority" class="form-input form-select">
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-category">カテゴリ</label>
+            <input type="text" id="edit-category" class="form-input" maxlength="50" list="category-list">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-due-date">期限</label>
+            <input type="date" id="edit-due-date" class="form-input">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn--secondary" id="modal-cancel">キャンセル</button>
+          <button type="submit" class="btn btn--primary">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="todo-app.js"></script>
+</body>
+</html>
